@@ -1,0 +1,62 @@
+{
+  "id": "org.asyar.speedtest",
+  "name": "Speed Test",
+  "version": "1.0.0",
+  "description": "Measure your internet connection. Live gauge, plain-English verdict, history chart, and tray indicator.",
+  "author": "Asyar",
+  "icon": "📶",
+  "type": "extension",
+  "asyarSdk": "^3.0.1",
+  "background": { "main": "dist/worker.js" },
+
+  "permissions": [
+    "network",
+    "storage:read",
+    "storage:write",
+    "tools:register",
+    "extension:invoke"
+  ],
+
+  "preferences": [
+    { "name": "historyEnabled", "type": "checkbox", "title": "Save test history", "default": true },
+    { "name": "historyLimit",   "type": "number",   "title": "Max history entries", "default": 200 },
+    { "name": "showTray",       "type": "checkbox", "title": "Show tray indicator after first test", "default": true },
+    { "name": "trayMetric",     "type": "dropdown", "title": "Tray shows", "default": "down",
+      "data": [
+        { "value": "down",    "title": "Download (Mbps)" },
+        { "value": "ping",    "title": "Ping (ms)" },
+        { "value": "verdict", "title": "Verdict (Excellent/Good/…)" }
+      ]
+    }
+  ],
+
+  "commands": [
+    {
+      "id": "test", "name": "Speed Test",
+      "description": "Test your internet connection",
+      "icon": "📶", "mode": "view", "component": "TestView"
+    },
+    {
+      "id": "history", "name": "Speed Test History",
+      "description": "Browse past results with a trend chart",
+      "icon": "📊", "mode": "view", "component": "HistoryView"
+    }
+  ],
+
+  "tools": [
+    {
+      "id": "run-speed-test",
+      "name": "Run speed test",
+      "description": "Measure the user's current internet download speed, upload speed, and latency. Call when the user asks how fast their connection is, complains it feels slow, or asks to test their internet. Takes ~15-25 seconds; the result includes Mbps figures, ping, and a plain-English quality verdict.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "quickMode": {
+            "type": "boolean",
+            "description": "Optional. When true, runs a faster (~5s) reduced-payload test for a rough estimate. Defaults to false."
+          }
+        }
+      }
+    }
+  ]
+}
