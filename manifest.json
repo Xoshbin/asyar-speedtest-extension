@@ -1,12 +1,12 @@
 {
   "id": "org.asyar.speedtest",
   "name": "Speed Test",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Measure your internet connection. Live gauge, plain-English verdict, history chart, and tray indicator.",
   "author": "Asyar",
   "icon": "📶",
   "type": "extension",
-  "asyarSdk": "^3.0.1",
+  "asyarSdk": "^4.0.0",
   "background": { "main": "dist/worker.js" },
 
   "permissions": [
