@@ -1,7 +1,7 @@
 {
   "name": "org.asyar.speedtest",
   "version": "1.0.0",
-  "description": "Measure your internet connection. Live gauge, plain-English verdict, history chart, and tray indicator.",
+  "description": "Measure your internet connection. Live gauge, plain-English verdict, and history chart.",
   "type": "module",
   "scripts": {
     "dev": "vite",

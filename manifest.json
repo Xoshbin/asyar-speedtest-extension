@@ -2,7 +2,7 @@
   "id": "org.asyar.speedtest",
   "name": "Speed Test",
   "version": "1.0.1",
-  "description": "Measure your internet connection. Live gauge, plain-English verdict, history chart, and tray indicator.",
+  "description": "Measure your internet connection. Live gauge, plain-English verdict, and history chart.",
   "author": "Asyar",
   "icon": "📶",
   "type": "extension",
@@ -19,15 +19,7 @@
 
   "preferences": [
     { "name": "historyEnabled", "type": "checkbox", "title": "Save test history", "default": true },
-    { "name": "historyLimit",   "type": "number",   "title": "Max history entries", "default": 200 },
-    { "name": "showTray",       "type": "checkbox", "title": "Show tray indicator after first test", "default": true },
-    { "name": "trayMetric",     "type": "dropdown", "title": "Tray shows", "default": "down",
-      "data": [
-        { "value": "down",    "title": "Download (Mbps)" },
-        { "value": "ping",    "title": "Ping (ms)" },
-        { "value": "verdict", "title": "Verdict (Excellent/Good/…)" }
-      ]
-    }
+    { "name": "historyLimit",   "type": "number",   "title": "Max history entries", "default": 200 }
   ],
 
   "commands": [

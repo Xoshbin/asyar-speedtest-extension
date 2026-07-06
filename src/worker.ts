@@ -8,7 +8,6 @@ import type {
   ExtensionResult,
   INetworkService,
   IStorageService,
-  IStatusBarService,
   IToolsService,
   ManifestTool,
 } from 'asyar-sdk/contracts';
@@ -20,7 +19,7 @@ import { slidingWindowMbps, type Sample } from './lib/throughput';
 import { scoreQuality } from './lib/quality';
 import { appendHistory, loadHistory, deleteHistoryEntry, clearHistory } from './lib/storage';
 import { formatSummary } from './lib/format';
-import type { TestResult, Phase, QualityReport, HistoryEntry, Meta } from './lib/types';
+import type { TestResult, Phase, HistoryEntry, Meta } from './lib/types';
 
 const extensionId = resolveExtensionId();
 const ctx = new WorkerExtensionContext();
@@ -28,11 +27,9 @@ ctx.setExtensionId(extensionId);
 
 // Service handles. NOTE: `interop` is not in the worker proxy bag — the SDK's
 // asyar-sdk/worker excludes feedback/selection/interop/clipboard from the
-// worker bundle. Tray clicks (and any cross-extension launches) happen on the
-// view side, which has the full proxy bag.
+// worker bundle.
 const network   = ctx.getService<INetworkService>('network');
 const storage   = ctx.getService<IStorageService>('storage');
-const statusBar = ctx.getService<IStatusBarService>('statusBar');
 const tools     = ctx.getService<IToolsService>('tools');
 const state     = ctx.getService<ExtensionStateProxy>('state');
 
@@ -55,42 +52,6 @@ const QUICK_OPTS: RunTestOpts = {
 
 let __runSeq = 0;
 let __currentRun: { token: number; controller: AbortController } | null = null;
-
-// ─── tray ──────────────────────────────────────────────────────────────────
-
-const TRAY_ID = 'last-result';
-let trayRegistered = false;
-
-function trayText(result: TestResult, verdict: QualityReport): string {
-  const prefs = ctx.preferences.values as Record<string, unknown> | undefined;
-  const v = (prefs?.trayMetric ?? 'down') as string;
-  if (v === 'down') return `${result.downloadMbps.toFixed(0)} ↓ Mbps`;
-  if (v === 'ping') return `${result.pingMs.toFixed(0)} ms`;
-  return verdict.headline.slice(0, 24);
-}
-
-function showTrayPref(): boolean {
-  const prefs = ctx.preferences.values as Record<string, unknown> | undefined;
-  return prefs?.showTray !== false; // default true
-}
-
-function writeTray(result: TestResult, verdict: QualityReport): void {
-  if (!showTrayPref()) return;
-  const text = trayText(result, verdict);
-  if (!trayRegistered) {
-    statusBar.registerItem({
-      id: TRAY_ID,
-      icon: '📶',
-      text,
-      // No onClick: launching another command requires `interop`, which isn't
-      // in the worker proxy bag. Tray icon stays informational; users open the
-      // command from the launcher.
-    });
-    trayRegistered = true;
-  } else {
-    statusBar.updateItem(TRAY_ID, { text });
-  }
-}
 
 // ─── history ───────────────────────────────────────────────────────────────
 
@@ -148,12 +109,10 @@ async function runOneTest(quickMode: boolean): Promise<TestResult> {
   }
   __currentRun = null;
 
-  // Push final state, persist, update tray.
+  // Push final state, persist.
   void setState('meta', result.server);
   void setState('lastResult', result);
 
-  const verdict = scoreQuality(result);
-  writeTray(result, verdict);
   try { await writeHistoryIfEnabled(result); } catch { /* best-effort */ }
 
   return result;
