@@ -1,7 +1,7 @@
 {
   "id": "org.asyar.speedtest",
   "name": "Speed Test",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Measure your internet connection. Live gauge, plain-English verdict, and history chart.",
   "author": "Asyar",
   "icon": "📶",
