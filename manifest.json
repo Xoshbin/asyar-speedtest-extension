@@ -1,14 +1,15 @@
 {
   "id": "org.asyar.speedtest",
   "name": "Speed Test",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Measure your internet connection. Live gauge, plain-English verdict, and history chart.",
   "author": "Asyar",
   "icon": "📶",
   "type": "extension",
-  "asyarSdk": "^4.0.0",
-  "background": { "main": "dist/worker.js" },
-
+  "asyarSdk": "^4.3.0",
+  "background": {
+    "main": "dist/worker.js"
+  },
   "permissions": [
     "network",
     "storage:read",
@@ -16,25 +17,38 @@
     "tools:register",
     "extension:invoke"
   ],
-
   "preferences": [
-    { "name": "historyEnabled", "type": "checkbox", "title": "Save test history", "default": true },
-    { "name": "historyLimit",   "type": "number",   "title": "Max history entries", "default": 200 }
-  ],
-
-  "commands": [
     {
-      "id": "test", "name": "Speed Test",
-      "description": "Test your internet connection",
-      "icon": "📶", "mode": "view", "component": "TestView"
+      "name": "historyEnabled",
+      "type": "checkbox",
+      "title": "Save test history",
+      "default": true
     },
     {
-      "id": "history", "name": "Speed Test History",
-      "description": "Browse past results with a trend chart",
-      "icon": "📊", "mode": "view", "component": "HistoryView"
+      "name": "historyLimit",
+      "type": "number",
+      "title": "Max history entries",
+      "default": 200
     }
   ],
-
+  "commands": [
+    {
+      "id": "test",
+      "name": "Speed Test",
+      "description": "Test your internet connection",
+      "icon": "📶",
+      "mode": "view",
+      "component": "TestView"
+    },
+    {
+      "id": "history",
+      "name": "Speed Test History",
+      "description": "Browse past results with a trend chart",
+      "icon": "📊",
+      "mode": "view",
+      "component": "HistoryView"
+    }
+  ],
   "tools": [
     {
       "id": "run-speed-test",
