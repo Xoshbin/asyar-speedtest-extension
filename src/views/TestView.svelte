@@ -11,9 +11,9 @@
   import type { Phase, TestResult, Meta } from '../lib/types';
   import { scoreQuality } from '../lib/quality';
   import { formatSummary, formatMbps } from '../lib/format';
-  import SpeedGauge  from '../components/SpeedGauge.svelte';
-  import PhaseList   from '../components/PhaseList.svelte';
-  import ResultCard  from '../components/ResultCard.svelte';
+  import SpeedGauge from '../components/SpeedGauge.svelte';
+  import PhaseList from '../components/PhaseList.svelte';
+  import ResultCard from '../components/ResultCard.svelte';
 
   interface ContextLike {
     request<T = unknown>(id: string, payload?: unknown, opts?: { timeoutMs?: number }): Promise<T>;
@@ -34,14 +34,14 @@
   // this proxy at runtime, causing the view to never initialise.
   const stateService = context.getService<ExtensionStateProxy>('state');
 
-  let runState  = $state<'idle'|'running'|'done'|'error'>('idle');
-  let phase     = $state<Phase>('idle');
-  let mbps      = $state(0);
-  let meta      = $state<Meta | null>(null);
-  let final     = $state<TestResult | null>(null);
-  let errorMsg  = $state<string | null>(null);
+  let runState = $state<'idle' | 'running' | 'done' | 'error'>('idle');
+  let phase = $state<Phase>('idle');
+  let mbps = $state(0);
+  let meta = $state<Meta | null>(null);
+  let final = $state<TestResult | null>(null);
+  let errorMsg = $state<string | null>(null);
 
-  let gaugeMax  = $state(100);
+  let gaugeMax = $state(100);
   $effect(() => {
     if (mbps > gaugeMax) gaugeMax = nextGaugeMax(mbps);
   });
@@ -53,16 +53,22 @@
   const disposers: Array<() => Promise<void>> = [];
 
   async function subscribeAll() {
-    disposers.push(await stateService.subscribe('phase', (v) => {
-      phase = (typeof v === 'string' ? v : 'idle') as Phase;
-      if (phase === 'error') runState = 'error';
-    }));
-    disposers.push(await stateService.subscribe('mbps', (v) => {
-      mbps = typeof v === 'number' ? v : 0;
-    }));
-    disposers.push(await stateService.subscribe('meta', (v) => {
-      meta = (v && typeof v === 'object') ? v as Meta : null;
-    }));
+    disposers.push(
+      await stateService.subscribe('phase', (v) => {
+        phase = (typeof v === 'string' ? v : 'idle') as Phase;
+        if (phase === 'error') runState = 'error';
+      }),
+    );
+    disposers.push(
+      await stateService.subscribe('mbps', (v) => {
+        mbps = typeof v === 'number' ? v : 0;
+      }),
+    );
+    disposers.push(
+      await stateService.subscribe('meta', (v) => {
+        meta = v && typeof v === 'object' ? (v as Meta) : null;
+      }),
+    );
   }
 
   async function start() {
@@ -82,7 +88,11 @@
     // Always pass a payload object — Tauri's `state_rpc_request` command
     // requires the `payload` key to be present, and the SDK strips `undefined`
     // during JSON serialisation if we omit it here.
-    try { await context.request('cancelTest', {}); } catch { /* ignore */ }
+    try {
+      await context.request('cancelTest', {});
+    } catch {
+      /* ignore */
+    }
     runState = 'idle';
   }
 
@@ -92,8 +102,7 @@
     // typeof NaN === 'number', so we need Number.isFinite for the metric
     // fields — otherwise a stale entry full of NaNs passes the guard and
     // the view shows ghost data instead of running a fresh test.
-    const finite = (n: unknown): n is number =>
-      typeof n === 'number' && Number.isFinite(n);
+    const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
     if (typeof r.id !== 'string' || r.id.length === 0) return false;
     if (!finite(r.timestamp) || r.timestamp <= 0) return false;
     if (!finite(r.downloadMbps)) return false;
@@ -148,7 +157,9 @@
       category: 'Test',
       extensionId,
       context: ActionContext.EXTENSION_VIEW,
-      execute: () => { void start(); },
+      execute: () => {
+        void start();
+      },
     });
     actions.registerAction({
       id: `${extensionId}.view.cancel`,
@@ -157,7 +168,9 @@
       category: 'Test',
       extensionId,
       context: ActionContext.EXTENSION_VIEW,
-      execute: () => { void cancel(); },
+      execute: () => {
+        void cancel();
+      },
     });
     actions.registerAction({
       id: `${extensionId}.view.copy-summary`,
@@ -178,19 +191,19 @@
       category: 'Test',
       extensionId,
       context: ActionContext.EXTENSION_VIEW,
-      execute: () => { void interop.launchCommand(extensionId, 'history'); },
+      execute: () => {
+        void interop.launchCommand(extensionId, 'history');
+      },
     });
   });
 
   onDestroy(async () => {
-    for (const d of disposers) { try { await d(); } catch { /* ignore */ } }
-    for (const id of [
-      `${extensionId}.view.rerun`,
-      `${extensionId}.view.cancel`,
-      `${extensionId}.view.copy-summary`,
-      `${extensionId}.view.open-history`,
-    ]) {
-      try { actions.unregisterAction(id); } catch { /* ignore */ }
+    for (const d of disposers) {
+      try {
+        await d();
+      } catch {
+        /* ignore */
+      }
     }
   });
 </script>
@@ -198,17 +211,17 @@
 <div class="testview">
   {#if runState === 'running'}
     <SpeedGauge value={mbps} max={gaugeMax} {phase} label={valueLabel()} unit={valueUnit()} />
-    <PhaseList currentPhase={phase}
+    <PhaseList
+      currentPhase={phase}
       pingMs={undefined}
       downloadMbps={phase === 'download' ? mbps : undefined}
-      uploadMbps={phase === 'upload' ? mbps : undefined} />
+      uploadMbps={phase === 'upload' ? mbps : undefined}
+    />
     {#if meta}
       <p class="meta">Cloudflare · {meta.colo} · {meta.isp}</p>
     {/if}
-
   {:else if runState === 'done' && final && verdict}
     <ResultCard result={final} {verdict} />
-
   {:else if runState === 'error'}
     <div class="error">
       <p class="hint">Speed test failed.</p>
@@ -232,7 +245,19 @@
     align-items: center;
     padding: var(--space-6);
   }
-  .hint   { color: var(--text-secondary); font-size: var(--font-size-base); margin: 0; }
-  .reason { color: var(--accent-danger);  font-size: var(--font-size-sm);   margin: 0; }
-  .meta   { color: var(--text-tertiary);  font-size: var(--font-size-xs);   margin: 0; }
+  .hint {
+    color: var(--text-secondary);
+    font-size: var(--font-size-base);
+    margin: 0;
+  }
+  .reason {
+    color: var(--accent-danger);
+    font-size: var(--font-size-sm);
+    margin: 0;
+  }
+  .meta {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    margin: 0;
+  }
 </style>

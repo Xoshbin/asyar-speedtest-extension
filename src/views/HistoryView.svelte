@@ -26,18 +26,17 @@
   }
   let { context, actions, clipboard, interop, extensionId }: Props = $props();
 
-  let entries     = $state<HistoryEntry[]>([]);
-  let focusedId   = $state<string | null>(null);
-  let metric      = $state<'download'|'upload'|'ping'>('download');
+  let entries = $state<HistoryEntry[]>([]);
+  let focusedId = $state<string | null>(null);
+  let metric = $state<'download' | 'upload' | 'ping'>('download');
 
-  let focused = $derived(entries.find(e => e.id === focusedId) ?? null);
+  let focused = $derived(entries.find((e) => e.id === focusedId) ?? null);
   let focusedVerdict = $derived(focused ? scoreQuality(focused) : null);
 
   function isValidEntry(e: unknown): e is HistoryEntry {
     if (!e || typeof e !== 'object') return false;
     const r = e as Partial<HistoryEntry>;
-    const finite = (n: unknown): n is number =>
-      typeof n === 'number' && Number.isFinite(n);
+    const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
     if (typeof r.id !== 'string' || r.id.length === 0) return false;
     if (!finite(r.timestamp) || r.timestamp <= 0) return false;
     if (!finite(r.downloadMbps)) return false;
@@ -62,7 +61,7 @@
     // serialisation if omitted.
     const raw = await context.request<unknown>('getHistory', {});
     entries = Array.isArray(raw) ? raw.filter(isValidEntry) : [];
-    if (entries.length > 0 && !entries.find(e => e.id === focusedId)) {
+    if (entries.length > 0 && !entries.find((e) => e.id === focusedId)) {
       focusedId = entries[entries.length - 1].id;
     } else if (entries.length === 0) {
       focusedId = null;
@@ -83,12 +82,13 @@
 
   function moveSelection(direction: 1 | -1): void {
     if (visibleEntries.length === 0) return;
-    const currentIdx = focusedId
-      ? visibleEntries.findIndex(e => e.id === focusedId)
-      : -1;
-    const nextIdx = currentIdx < 0
-      ? (direction === 1 ? 0 : visibleEntries.length - 1)
-      : Math.max(0, Math.min(visibleEntries.length - 1, currentIdx + direction));
+    const currentIdx = focusedId ? visibleEntries.findIndex((e) => e.id === focusedId) : -1;
+    const nextIdx =
+      currentIdx < 0
+        ? direction === 1
+          ? 0
+          : visibleEntries.length - 1
+        : Math.max(0, Math.min(visibleEntries.length - 1, currentIdx + direction));
     focusedId = visibleEntries[nextIdx].id;
     ensureSelectedVisible();
   }
@@ -105,10 +105,14 @@
 
   function dotColor(v: TestResult['verdict']): string {
     switch (v) {
-      case 'excellent': return 'var(--accent-success)';
-      case 'good':      return 'var(--accent-primary)';
-      case 'fair':      return 'var(--accent-warning)';
-      default:          return 'var(--accent-danger)';
+      case 'excellent':
+        return 'var(--accent-success)';
+      case 'good':
+        return 'var(--accent-primary)';
+      case 'fair':
+        return 'var(--accent-warning)';
+      default:
+        return 'var(--accent-danger)';
     }
   }
 
@@ -122,13 +126,6 @@
     };
   }
 
-  const VIEW_ACTION_IDS = [
-    `${extensionId}.view.retest`,
-    `${extensionId}.view.copy-entry`,
-    `${extensionId}.view.delete-entry`,
-    `${extensionId}.view.clear-all`,
-  ];
-
   onMount(async () => {
     window.addEventListener('message', handleHostMessage);
     await reload();
@@ -141,7 +138,9 @@
       category: 'Entry',
       extensionId,
       context: ActionContext.EXTENSION_VIEW,
-      execute: () => { void interop.launchCommand(extensionId, 'test'); },
+      execute: () => {
+        void interop.launchCommand(extensionId, 'test');
+      },
     });
     actions.registerAction({
       id: `${extensionId}.view.copy-entry`,
@@ -188,9 +187,6 @@
 
   onDestroy(() => {
     window.removeEventListener('message', handleHostMessage);
-    for (const id of VIEW_ACTION_IDS) {
-      try { actions.unregisterAction(id); } catch { /* ignore */ }
-    }
   });
 </script>
 
@@ -207,7 +203,11 @@
             class="entry"
             class:selected={e.id === focusedId}
             data-entry-id={e.id}
-            onclick={() => { focusedId = e.id; ensureSelectedVisible(); }}>
+            onclick={() => {
+              focusedId = e.id;
+              ensureSelectedVisible();
+            }}
+          >
             <span class="dot" style="background-color: {dotColor(e.verdict)}"></span>
             <span class="title">{formatMbps(e.downloadMbps)} ↓ / {formatMbps(e.uploadMbps)} ↑</span>
             <span class="sub">
@@ -219,9 +219,13 @@
       <section class="detail custom-scrollbar">
         <div class="chart-row">
           <div class="tabs">
-            <button class:active={metric === 'download'} onclick={() => metric = 'download'}>Download</button>
-            <button class:active={metric === 'upload'}   onclick={() => metric = 'upload'}>Upload</button>
-            <button class:active={metric === 'ping'}     onclick={() => metric = 'ping'}>Ping</button>
+            <button class:active={metric === 'download'} onclick={() => (metric = 'download')}
+              >Download</button
+            >
+            <button class:active={metric === 'upload'} onclick={() => (metric = 'upload')}
+              >Upload</button
+            >
+            <button class:active={metric === 'ping'} onclick={() => (metric = 'ping')}>Ping</button>
           </div>
           <TrendChart series={entries} selectedId={focusedId} {metric} />
         </div>
@@ -236,7 +240,9 @@
 </div>
 
 <style>
-  .history { height: 100%; }
+  .history {
+    height: 100%;
+  }
   .empty {
     display: flex;
     flex-direction: column;
@@ -273,16 +279,27 @@
     text-align: left;
     font: inherit;
   }
-  .entry:hover { background-color: var(--bg-hover); }
-  .entry.selected { background-color: var(--bg-selected); }
+  .entry:hover {
+    background-color: var(--bg-hover);
+  }
+  .entry.selected {
+    background-color: var(--bg-selected);
+  }
   .dot {
     grid-row: 1 / span 2;
     align-self: center;
-    width: 8px; height: 8px;
+    width: 8px;
+    height: 8px;
     border-radius: var(--radius-full);
   }
-  .title { font-size: var(--font-size-sm); font-variant-numeric: tabular-nums; }
-  .sub   { color: var(--text-tertiary); font-size: var(--font-size-xs); }
+  .title {
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  .sub {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+  }
   .detail {
     display: flex;
     flex-direction: column;
@@ -308,6 +325,11 @@
     border-radius: var(--radius-xs);
     cursor: pointer;
   }
-  .tabs button.active { background-color: var(--bg-hover); color: var(--text-primary); }
-  .hint { color: var(--text-tertiary); }
+  .tabs button.active {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .hint {
+    color: var(--text-tertiary);
+  }
 </style>
