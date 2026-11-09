@@ -5,6 +5,7 @@ import type {
   ExtensionResult,
   INetworkService,
   IStorageService,
+  IStatusBarService,
   IToolsService,
   ManifestTool,
 } from 'asyar-sdk/contracts';
@@ -17,6 +18,7 @@ import { scoreQuality } from './lib/quality';
 import { appendHistory, loadHistory, deleteHistoryEntry, clearHistory } from './lib/storage';
 import { formatSummary } from './lib/format';
 import type { TestResult, Phase, HistoryEntry, Meta } from './lib/types';
+import { SpeedtestTray } from './lib/trayStatus';
 
 const extensionId = resolveExtensionId();
 const ctx = new WorkerExtensionContext();
@@ -29,6 +31,8 @@ const network = ctx.getService<INetworkService>('network');
 const storage = ctx.getService<IStorageService>('storage');
 const tools = ctx.getService<IToolsService>('tools');
 const state = ctx.getService<ExtensionStateProxy>('state');
+const statusBar = ctx.getService<IStatusBarService>('statusBar');
+const tray = new SpeedtestTray(statusBar, () => loadHistory(storage));
 
 async function setState(
   key: 'phase' | 'mbps' | 'meta' | 'lastResult',
@@ -123,6 +127,8 @@ async function runOneTest(quickMode: boolean): Promise<TestResult> {
     /* best-effort */
   }
 
+  tray.recordResult(result);
+
   return result;
 }
 
@@ -198,8 +204,12 @@ void (async () => {
 
 class SpeedTestExt implements Extension {
   async initialize(_c: ExtensionContext): Promise<void> {}
-  async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
+  async activate(): Promise<void> {
+    await tray.activate();
+  }
+  async deactivate(): Promise<void> {
+    tray.deactivate();
+  }
   async executeCommand(_id: string, _args?: Record<string, unknown>): Promise<unknown> {
     return undefined;
   }
@@ -213,6 +223,7 @@ extensionBridge.registerManifest(
   manifest as unknown as Parameters<typeof extensionBridge.registerManifest>[0],
 );
 extensionBridge.registerExtensionImplementation(extensionId, ext);
+void ext.activate();
 
 // Clear any stale state from prior worker mounts. Without this, a partial
 // result from an earlier broken run would be served to the view on mount,

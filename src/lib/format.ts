@@ -29,3 +29,8 @@ export function formatSummary(r: TestResult): string {
   const server = `Cloudflare ${r.server.colo} (${r.server.isp})`;
   return `Speed test — ${down} Mbps ↓ / ${up} ↑ · ${ping} ms ping · ${server}`;
 }
+
+export function speedtestTrayTitle(result: TestResult | undefined): string | undefined {
+  if (!result) return undefined;
+  return `↓ ${formatMbps(result.downloadMbps)} Mbps`;
+}

@@ -4,6 +4,7 @@ import {
   formatMs,
   formatRelativeTime,
   formatSummary,
+  speedtestTrayTitle,
 } from './format';
 import type { TestResult } from './types';
 
@@ -30,6 +31,20 @@ describe('formatMbps', () => {
   it('returns "—" for non-finite input', () => {
     expect(formatMbps(NaN)).toBe('—');
     expect(formatMbps(Infinity)).toBe('—');
+  });
+});
+
+describe('speedtestTrayTitle', () => {
+  it('shows the latest download result rounded above 10 Mbps', () => {
+    expect(speedtestTrayTitle(result)).toBe('↓ 483 Mbps');
+  });
+
+  it('keeps one decimal below 10 Mbps', () => {
+    expect(speedtestTrayTitle({ ...result, downloadMbps: 9.46 })).toBe('↓ 9.5 Mbps');
+  });
+
+  it('has no title before a result exists', () => {
+    expect(speedtestTrayTitle(undefined)).toBeUndefined();
   });
 });
 

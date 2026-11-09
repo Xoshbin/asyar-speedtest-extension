@@ -1,6 +1,6 @@
 {
   "name": "org.asyar.speedtest",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Measure your internet connection. Live gauge, plain-English verdict, and history chart.",
   "type": "module",
   "scripts": {
@@ -16,7 +16,7 @@
     "svelte": "^5.0.0"
   },
   "devDependencies": {
-    "asyar-sdk": "workspace:*",
+    "asyar-sdk": "^4.15.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@types/rollup-plugin-css-only": "^3.1.2",
     "typescript": "^5.0.0",
