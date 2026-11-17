@@ -4,9 +4,9 @@
   "version": "1.1.0",
   "description": "Measure your internet connection. Live gauge, plain-English verdict, and history chart.",
   "author": "Asyar",
-  "icon": "📶",
+  "icon": "assets/icon.png",
   "type": "extension",
-  "asyarSdk": "^4.15.0",
+  "asyarSdk": "^4.17.0",
   "background": {
     "main": "dist/worker.js"
   },

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14B8A6"/>
+      <stop offset="50%" stop-color="#0F766E"/>
+      <stop offset="100%" stop-color="#042F2E"/>
+    </linearGradient>
+    <radialGradient id="topSheen" cx="50%" cy="12%" r="65%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="specularRim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.45"/>
+      <stop offset="40%" stop-color="#FFFFFF" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.03"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#022C22" flood-opacity="0.6"/>
+    </filter>
+    <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#2DD4BF" flood-opacity="0.8"/>
+    </filter>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bg)"/>
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#topSheen)"/>
+  <rect x="33" y="33" width="446" height="446" rx="103" fill="none" stroke="url(#specularRim)" stroke-width="2"/>
+
+  <g filter="url(#shadow)">
+    <!-- Speedometer Gauge Track: 220 degree arc -->
+    <circle cx="256" cy="275" r="140" fill="none" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="6"
+            stroke-dasharray="538 880" stroke-linecap="round" transform="rotate(160 256 275)"/>
+    <!-- Bandwidth acceleration arc (Active Neon Teal) -->
+    <circle cx="256" cy="275" r="140" fill="none" stroke="#2DD4BF" stroke-width="8"
+            stroke-dasharray="410 880" stroke-linecap="round" transform="rotate(160 256 275)" filter="url(#neonGlow)"/>
+
+    <!-- Speed Ticks -->
+    <line x1="140" y1="325" x2="152" y2="320" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="124" y1="260" x2="136" y2="260" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="140" y1="195" x2="152" y2="200" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="195" y1="148" x2="202" y2="160" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="256" y1="135" x2="256" y2="148" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round"/>
+    <line x1="317" y1="148" x2="310" y2="160" stroke="#2DD4BF" stroke-width="4.5" stroke-linecap="round"/>
+    <line x1="372" y1="195" x2="360" y2="200" stroke="#2DD4BF" stroke-width="4.5" stroke-linecap="round"/>
+    <line x1="388" y1="260" x2="376" y2="260" stroke="#2DD4BF" stroke-width="4.5" stroke-linecap="round"/>
+
+    <!-- Needle pointing to ~45 degrees (High speed) -->
+    <polygon points="256,268 259,275 348,198 344,194" fill="#FFFFFF"/>
+    <polygon points="256,282 253,275 344,194 340,198" fill="#CCFBF1"/>
+
+    <!-- Central Pivot Dial Pin -->
+    <circle cx="256" cy="275" r="22" fill="#FFFFFF"/>
+    <circle cx="256" cy="275" r="14" fill="#0D9488"/>
+    <circle cx="256" cy="275" r="6" fill="#CCFBF1"/>
+  </g>
+</svg>
