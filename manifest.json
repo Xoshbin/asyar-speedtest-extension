@@ -36,7 +36,6 @@
       "id": "test",
       "name": "Speed Test",
       "description": "Test your internet connection",
-      "icon": "📶",
       "mode": "view",
       "component": "TestView"
     },
