@@ -42,8 +42,12 @@ describe('scoreQuality verdict tiers', () => {
   });
 
   it('verdict equals the worst band across all four metrics', () => {
-    expect(scoreQuality(r({ downloadMbps: 500, uploadMbps: 50, pingMs: 100, jitterMs: 10 })).verdict).toBe('fair');
-    expect(scoreQuality(r({ downloadMbps: 500, uploadMbps: 50, pingMs: 200, jitterMs: 10 })).verdict).toBe('poor');
+    expect(
+      scoreQuality(r({ downloadMbps: 500, uploadMbps: 50, pingMs: 100, jitterMs: 10 })).verdict,
+    ).toBe('fair');
+    expect(
+      scoreQuality(r({ downloadMbps: 500, uploadMbps: 50, pingMs: 200, jitterMs: 10 })).verdict,
+    ).toBe('poor');
   });
 });
 
@@ -56,7 +60,7 @@ describe('scoreQuality capabilities', () => {
   it('lights up zoomHd1on1 only when upload ≥ 1.2 AND ping ≤ 150', () => {
     expect(scoreQuality(r({ uploadMbps: 1.2, pingMs: 150 })).capabilities.zoomHd1on1).toBe(true);
     expect(scoreQuality(r({ uploadMbps: 1.1, pingMs: 150 })).capabilities.zoomHd1on1).toBe(false);
-    expect(scoreQuality(r({ uploadMbps: 5,   pingMs: 151 })).capabilities.zoomHd1on1).toBe(false);
+    expect(scoreQuality(r({ uploadMbps: 5, pingMs: 151 })).capabilities.zoomHd1on1).toBe(false);
   });
 
   it('lights up onlineGaming only when ping ≤ 50 AND jitter ≤ 20', () => {
@@ -76,7 +80,10 @@ describe('scoreQuality headline', () => {
     expect(scoreQuality(r()).headline.toLowerCase()).toContain('great');
   });
   it('emits a slow headline at the poor tier', () => {
-    expect(scoreQuality(r({ downloadMbps: 1, uploadMbps: 0.2, pingMs: 400, jitterMs: 100 })).headline.toLowerCase())
-      .toContain('slow');
+    expect(
+      scoreQuality(
+        r({ downloadMbps: 1, uploadMbps: 0.2, pingMs: 400, jitterMs: 100 }),
+      ).headline.toLowerCase(),
+    ).toContain('slow');
   });
 });

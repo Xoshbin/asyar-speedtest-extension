@@ -4,7 +4,10 @@ import { topDecileMbps, type Sample } from './throughput';
 import { scoreQuality } from './quality';
 
 export class SpeedTestError extends Error {
-  constructor(message: string, public readonly cause?: unknown) {
+  constructor(
+    message: string,
+    public readonly cause?: unknown,
+  ) {
     super(message);
     this.name = 'SpeedTestError';
   }
@@ -25,10 +28,10 @@ const HOST = 'https://speed.cloudflare.com';
 const BROWSER_HEADERS: Record<string, string> = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
-  'Accept': '*/*',
+  Accept: '*/*',
   'Accept-Language': 'en-US,en;q=0.9',
-  'Origin': 'https://speed.cloudflare.com',
-  'Referer': 'https://speed.cloudflare.com/',
+  Origin: 'https://speed.cloudflare.com',
+  Referer: 'https://speed.cloudflare.com/',
 };
 
 export async function fetchMeta(network: INetworkService): Promise<Meta> {
@@ -49,10 +52,10 @@ export async function fetchMeta(network: INetworkService): Promise<Meta> {
   }
   const m = raw as Record<string, unknown>;
   return {
-    isp:     coerceMetaString(m.asOrganization, 'Unknown ISP'),
-    colo:    coerceMetaString(m.colo, '???'),
+    isp: coerceMetaString(m.asOrganization, 'Unknown ISP'),
+    colo: coerceMetaString(m.colo, '???'),
     country: coerceMetaString(m.country, '??'),
-    ip:      coerceMetaString(m.clientIp, ''),
+    ip: coerceMetaString(m.clientIp, ''),
   };
 }
 
@@ -93,9 +96,7 @@ function median(values: number[]): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = sorted.length >> 1;
-  return sorted.length % 2 === 1
-    ? sorted[mid]
-    : (sorted[mid - 1] + sorted[mid]) / 2;
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 function stddev(values: number[]): number {
@@ -120,7 +121,7 @@ export async function measureLatency(
     samples.push(t1 - t0);
   }
   return {
-    pingMs:   median(samples),
+    pingMs: median(samples),
     jitterMs: stddev(samples),
     samples,
   };
@@ -168,7 +169,10 @@ async function measurePhase(
   async function streamLoop() {
     while (!stopped) {
       if (opts.signal?.aborted) throw new SpeedTestError('Measurement aborted', opts.signal);
-      if (now() - start >= opts.budgetMs) { stopped = true; break; }
+      if (now() - start >= opts.budgetMs) {
+        stopped = true;
+        break;
+      }
       const bytes = opts.chunkBytesPlan[planIdx % opts.chunkBytesPlan.length];
       planIdx += 1;
       const t0 = now();
@@ -179,7 +183,10 @@ async function measurePhase(
         samples.push({ t: t1, bytes, durMs: t1 - t0 });
         if (opts.onSample) opts.onSample(samples[samples.length - 1]);
       } else {
-        const res = await network.fetch(`${HOST}/__down?bytes=${bytes}`, { method: 'GET', headers: BROWSER_HEADERS });
+        const res = await network.fetch(`${HOST}/__down?bytes=${bytes}`, {
+          method: 'GET',
+          headers: BROWSER_HEADERS,
+        });
         const delivered = typeof res.body === 'string' ? res.body.length : bytes;
         const t1 = now();
         samples.push({ t: t1, bytes: delivered, durMs: t1 - t0 });
@@ -194,9 +201,9 @@ async function measurePhase(
 }
 
 export interface RunTestOpts {
-  latency:  MeasureLatencyOpts;
+  latency: MeasureLatencyOpts;
   download: MeasureDownloadOpts;
-  upload:   MeasureDownloadOpts;
+  upload: MeasureDownloadOpts;
   onProgress?: (event: ProgressEvent) => void;
   /** Optional id factory — defaults to a monotonic time-based id. */
   newId?: () => string;
@@ -206,10 +213,7 @@ function defaultId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export async function runTest(
-  network: INetworkService,
-  opts: RunTestOpts,
-): Promise<TestResult> {
+export async function runTest(network: INetworkService, opts: RunTestOpts): Promise<TestResult> {
   const emit = (phase: Phase, mbps?: number) =>
     opts.onProgress?.({ phase, ...(mbps !== undefined ? { mbps } : {}) });
 

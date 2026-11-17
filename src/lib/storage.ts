@@ -8,7 +8,7 @@ export async function loadHistory(storage: IStorageService): Promise<HistoryEntr
   if (typeof raw !== 'string') return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed as HistoryEntry[] : [];
+    return Array.isArray(parsed) ? (parsed as HistoryEntry[]) : [];
   } catch {
     return [];
   }
@@ -26,12 +26,9 @@ export async function appendHistory(
   await storage.set(KEY, JSON.stringify(arr));
 }
 
-export async function deleteHistoryEntry(
-  storage: IStorageService,
-  id: string,
-): Promise<void> {
+export async function deleteHistoryEntry(storage: IStorageService, id: string): Promise<void> {
   const arr = await loadHistory(storage);
-  const next = arr.filter(e => e.id !== id);
+  const next = arr.filter((e) => e.id !== id);
   if (next.length === arr.length) return;
   await storage.set(KEY, JSON.stringify(next));
 }

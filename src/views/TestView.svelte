@@ -6,6 +6,7 @@
     type IActionService,
     type IClipboardHistoryService,
     type IInteropService,
+    type IFeedbackService,
     type ExtensionStateProxy,
   } from 'asyar-sdk/contracts';
   import type { Phase, TestResult, Meta } from '../lib/types';
@@ -25,14 +26,10 @@
     actions: IActionService;
     clipboard: IClipboardHistoryService;
     interop: IInteropService;
+    feedback?: IFeedbackService;
     extensionId: string;
   }
-  let { context, actions, clipboard, interop, extensionId }: Props = $props();
-
-  // NOTE: don't call this `state` — that identifier shadows Svelte 5's `$state`
-  // rune detection and the compiler routes every `$state(...)` call through
-  // this proxy at runtime, causing the view to never initialise.
-  const stateService = context.getService<ExtensionStateProxy>('state');
+  let { context, actions, clipboard, interop, feedback, extensionId }: Props = $props();
 
   let runState = $state<'idle' | 'running' | 'done' | 'error'>('idle');
   let phase = $state<Phase>('idle');
@@ -41,18 +38,31 @@
   let final = $state<TestResult | null>(null);
   let errorMsg = $state<string | null>(null);
 
+  let lockedDownload = $state<number | undefined>(undefined);
+  let lockedUpload = $state<number | undefined>(undefined);
+
   let gaugeMax = $state(100);
   $effect(() => {
     if (mbps > gaugeMax) gaugeMax = nextGaugeMax(mbps);
   });
   function nextGaugeMax(v: number): number {
-    for (const cap of [50, 100, 250, 500, 1000, 2500, 5000]) if (v <= cap) return cap;
+    for (const cap of [50, 100, 250, 500, 1000, 2500, 5000]) {
+      if (v <= cap) return cap;
+    }
     return Math.ceil(v / 1000) * 1000;
   }
 
+  $effect(() => {
+    if (phase === 'download' && mbps > 0) {
+      lockedDownload = mbps;
+    } else if (phase === 'upload' && mbps > 0) {
+      lockedUpload = mbps;
+    }
+  });
+
   const disposers: Array<() => Promise<void>> = [];
 
-  async function subscribeAll() {
+  async function subscribeAll(stateService: ExtensionStateProxy) {
     disposers.push(
       await stateService.subscribe('phase', (v) => {
         phase = (typeof v === 'string' ? v : 'idle') as Phase;
@@ -75,6 +85,8 @@
     runState = 'running';
     errorMsg = null;
     mbps = 0;
+    lockedDownload = undefined;
+    lockedUpload = undefined;
     try {
       final = await context.request<TestResult>('runTest', {}, { timeoutMs: 90_000 });
       runState = 'done';
@@ -85,9 +97,6 @@
   }
 
   async function cancel() {
-    // Always pass a payload object — Tauri's `state_rpc_request` command
-    // requires the `payload` key to be present, and the SDK strips `undefined`
-    // during JSON serialisation if we omit it here.
     try {
       await context.request('cancelTest', {});
     } catch {
@@ -99,9 +108,6 @@
   function looksLikeValidResult(v: unknown): v is TestResult {
     if (!v || typeof v !== 'object') return false;
     const r = v as Partial<TestResult>;
-    // typeof NaN === 'number', so we need Number.isFinite for the metric
-    // fields — otherwise a stale entry full of NaNs passes the guard and
-    // the view shows ghost data instead of running a fresh test.
     const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
     if (typeof r.id !== 'string' || r.id.length === 0) return false;
     if (!finite(r.timestamp) || r.timestamp <= 0) return false;
@@ -128,17 +134,71 @@
   }
 
   function valueLabel(): string {
-    if (phase === 'latency') return mbps.toFixed(0);
+    if (phase === 'latency') return mbps > 0 ? mbps.toFixed(0) : '—';
     return formatMbps(mbps);
   }
+
   function valueUnit(): string {
     return phase === 'latency' ? 'ms' : 'Mbps';
   }
 
   let verdict = $derived(final ? scoreQuality(final) : null);
 
+  function handleWindowKeydown(event: KeyboardEvent): void {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'r') {
+      event.preventDefault();
+      void start();
+    } else if (
+      ((event.metaKey || event.ctrlKey) && event.key === '.') ||
+      (event.key === 'Escape' && runState === 'running')
+    ) {
+      event.preventDefault();
+      void cancel();
+    } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c') {
+      if (final && runState === 'done') {
+        event.preventDefault();
+        void clipboard.writeToClipboard(clipboardTextItem(formatSummary(final)));
+      }
+    } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'h') {
+      event.preventDefault();
+      void interop.launchCommand(extensionId, 'history');
+    } else if (event.key === 'Enter' && runState !== 'running') {
+      event.preventDefault();
+      void start();
+    }
+  }
+
+  function handleHostMessage(event: MessageEvent): void {
+    if (event.source !== window.parent) return;
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type !== 'asyar:view:keydown') return;
+    const payload = data.payload as
+      { key?: string; metaKey?: boolean; ctrlKey?: boolean } | undefined;
+    const key = payload?.key;
+    const metaPressed = payload?.metaKey || payload?.ctrlKey;
+    if (metaPressed && key?.toLowerCase() === 'r') {
+      void start();
+    } else if (metaPressed && key === '.') {
+      void cancel();
+    } else if (metaPressed && key?.toLowerCase() === 'c') {
+      if (final && runState === 'done') {
+        void clipboard.writeToClipboard(clipboardTextItem(formatSummary(final)));
+      }
+    } else if (metaPressed && key?.toLowerCase() === 'h') {
+      void interop.launchCommand(extensionId, 'history');
+    } else if (key === 'Enter' && runState !== 'running') {
+      void start();
+    }
+  }
+
   onMount(async () => {
-    await subscribeAll();
+    window.addEventListener('keydown', handleWindowKeydown);
+    window.addEventListener('message', handleHostMessage);
+
+    const stateService = context.getService<ExtensionStateProxy>('state');
+    await subscribeAll(stateService);
+
     const last = await stateService.get('lastResult');
     if (looksLikeValidResult(last)) {
       final = last;
@@ -147,12 +207,10 @@
       void start();
     }
 
-    // View-context actions that show up in the launcher's ⌘K drawer while
-    // this view is mounted. Each one is paired with an `unregisterAction`
-    // in onDestroy so they don't leak to other views.
+    // View-context actions registered with the host ActionService (for ⌘K drawer)
     actions.registerAction({
-      id: `${extensionId}.view.rerun`,
-      title: 'Run speed test',
+      id: `${extensionId}.view.retest`,
+      title: 'Retest',
       shortcut: '⌘R',
       category: 'Test',
       extensionId,
@@ -174,7 +232,7 @@
     });
     actions.registerAction({
       id: `${extensionId}.view.copy-summary`,
-      title: 'Copy result',
+      title: 'Copy summary',
       shortcut: '⌘C',
       category: 'Test',
       extensionId,
@@ -182,11 +240,16 @@
       execute: async () => {
         if (!final) return;
         await clipboard.writeToClipboard(clipboardTextItem(formatSummary(final)));
+        try {
+          await feedback?.showHUD('Copied summary');
+        } catch {
+          /* ignore */
+        }
       },
     });
     actions.registerAction({
       id: `${extensionId}.view.open-history`,
-      title: 'Open history',
+      title: 'History',
       shortcut: '⌘H',
       category: 'Test',
       extensionId,
@@ -198,6 +261,12 @@
   });
 
   onDestroy(async () => {
+    window.removeEventListener('keydown', handleWindowKeydown);
+    window.removeEventListener('message', handleHostMessage);
+    actions.unregisterAction(`${extensionId}.view.retest`);
+    actions.unregisterAction(`${extensionId}.view.cancel`);
+    actions.unregisterAction(`${extensionId}.view.copy-summary`);
+    actions.unregisterAction(`${extensionId}.view.open-history`);
     for (const d of disposers) {
       try {
         await d();
@@ -210,22 +279,44 @@
 
 <div class="testview">
   {#if runState === 'running'}
-    <SpeedGauge value={mbps} max={gaugeMax} {phase} label={valueLabel()} unit={valueUnit()} />
-    <PhaseList
-      currentPhase={phase}
-      pingMs={undefined}
-      downloadMbps={phase === 'download' ? mbps : undefined}
-      uploadMbps={phase === 'upload' ? mbps : undefined}
-    />
-    {#if meta}
-      <p class="meta">Cloudflare · {meta.colo} · {meta.isp}</p>
-    {/if}
+    <div class="active-container">
+      <SpeedGauge value={mbps} max={gaugeMax} {phase} label={valueLabel()} unit={valueUnit()} />
+
+      <PhaseList
+        currentPhase={phase}
+        pingMs={final?.pingMs}
+        jitterMs={final?.jitterMs}
+        downloadMbps={phase === 'download' ? mbps : (lockedDownload ?? final?.downloadMbps)}
+        uploadMbps={phase === 'upload' ? mbps : (lockedUpload ?? final?.uploadMbps)}
+      />
+
+      <div class="meta-row">
+        {#if meta}
+          <span class="meta-pill">Cloudflare • {meta.colo} • {meta.isp}</span>
+        {:else}
+          <span class="meta-pill">Cloudflare edge node • Initializing…</span>
+        {/if}
+      </div>
+    </div>
   {:else if runState === 'done' && final && verdict}
-    <ResultCard result={final} {verdict} />
+    <div class="result-container">
+      <ResultCard result={final} {verdict} />
+    </div>
   {:else if runState === 'error'}
-    <div class="error">
-      <p class="hint">Speed test failed.</p>
-      {#if errorMsg}<p class="reason">{errorMsg}</p>{/if}
+    <div class="error-container">
+      <div class="error-badge">Speed test interrupted</div>
+      {#if errorMsg}
+        <p class="error-reason">{errorMsg}</p>
+      {/if}
+      <button class="retry-btn" onclick={start}>
+        <kbd>⏎</kbd> <span>Run speed test</span>
+      </button>
+    </div>
+  {:else}
+    <div class="idle-container">
+      <button class="retry-btn" onclick={start}>
+        <kbd>⏎</kbd> <span>Run speed test</span>
+      </button>
     </div>
   {/if}
 </div>
@@ -234,30 +325,105 @@
   .testview {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
-    padding: var(--space-5);
     align-items: center;
+    justify-content: center;
+    min-height: 100%;
+    padding: var(--space-4);
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
   }
-  .error {
+
+  .active-container {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
     align-items: center;
+    gap: var(--space-4);
+    width: 100%;
+  }
+
+  .result-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .meta-pill {
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+  }
+
+  .error-container,
+  .idle-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
     padding: var(--space-6);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
   }
-  .hint {
-    color: var(--text-secondary);
-    font-size: var(--font-size-base);
-    margin: 0;
-  }
-  .reason {
+
+  .error-badge {
     color: var(--accent-danger);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+  }
+
+  .error-reason {
+    color: var(--text-secondary);
     font-size: var(--font-size-sm);
     margin: 0;
   }
-  .meta {
-    color: var(--text-tertiary);
-    font-size: var(--font-size-xs);
-    margin: 0;
+
+  .retry-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--dur-instant) var(--ease-travel);
+  }
+
+  .retry-btn:hover {
+    background: var(--bg-hover);
+  }
+
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-2xs);
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-xs);
+    line-height: 1;
   }
 </style>

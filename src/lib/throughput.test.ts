@@ -17,8 +17,8 @@ describe('slidingWindowMbps', () => {
     // chunk C: 10 MB / 1 s = 80 Mbps  at t=2000 (outside 1.5s window)
     const samples: Sample[] = [
       sample(2000, 10_000_000, 1000),
-      sample(4000,  1_000_000, 1000),
-      sample(4500,  2_000_000, 1000),
+      sample(4000, 1_000_000, 1000),
+      sample(4500, 2_000_000, 1000),
     ];
     // window covers (3500, 5000] — C excluded, A & B inside
     expect(slidingWindowMbps(samples, 1500, /*now*/ 5000)).toBeCloseTo((8 + 16) / 2, 5);

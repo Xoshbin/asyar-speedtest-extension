@@ -1,6 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { INetworkService } from 'asyar-sdk/contracts';
-import { fetchMeta, measureLatency, measureDownload, measureUpload, SpeedTestError, runTest } from './engine';
+import {
+  fetchMeta,
+  measureLatency,
+  measureDownload,
+  measureUpload,
+  SpeedTestError,
+  runTest,
+} from './engine';
 import { scoreQuality } from './quality';
 
 type FetchArgs = Parameters<INetworkService['fetch']>;
@@ -14,8 +21,11 @@ function mockNetwork(
       const [url, init] = args;
       const partial = await responder(url, init);
       return {
-        ok: true, status: 200, statusText: 'OK',
-        headers: {}, body: '',
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        body: '',
         ...partial,
       } as FetchResult;
     }),
@@ -50,7 +60,10 @@ describe('fetchMeta', () => {
 describe('measureLatency', () => {
   it('runs the configured probe count, derives median + jitter from elapsed', async () => {
     let n = 0;
-    const net = mockNetwork(async () => { n += 1; return { body: '' }; });
+    const net = mockNetwork(async () => {
+      n += 1;
+      return { body: '' };
+    });
 
     // Build a deterministic timeline: each probe consumes two now() calls
     // (t0 then t1). Per-probe elapsed = [10,12,11,13,9,14,10,11,12,13].
@@ -79,9 +92,9 @@ describe('measureLatency', () => {
       if (count === 3) ctrl.abort();
       return { body: '' };
     });
-    await expect(
-      measureLatency(net, { probes: 20, signal: ctrl.signal }),
-    ).rejects.toThrow(/abort/i);
+    await expect(measureLatency(net, { probes: 20, signal: ctrl.signal })).rejects.toThrow(
+      /abort/i,
+    );
   });
 });
 
@@ -167,24 +180,31 @@ describe('runTest orchestration', () => {
   it('runs meta → latency → download → upload and returns a TestResult', async () => {
     const net = mockNetwork((url) => {
       if (url.endsWith('/meta')) {
-        return { body: JSON.stringify({
-          clientIp: '1.1.1.1', country: 'GB', colo: 'LHR', asOrganization: 'BT plc',
-        })};
+        return {
+          body: JSON.stringify({
+            clientIp: '1.1.1.1',
+            country: 'GB',
+            colo: 'LHR',
+            asOrganization: 'BT plc',
+          }),
+        };
       }
       if (url.includes('__down')) return { body: '0'.repeat(1_000_000) };
-      if (url.includes('__up'))   return { body: 'ok' };
+      if (url.includes('__up')) return { body: 'ok' };
       return { body: '' };
     });
 
     const phases: string[] = [];
     let tick = 0;
-    const fakeNow = () => (tick++) * 5; // each call advances 5ms
+    const fakeNow = () => tick++ * 5; // each call advances 5ms
 
     const result = await runTest(net, {
       latency: { probes: 3, now: fakeNow },
       download: { budgetMs: 30, parallelism: 1, chunkBytesPlan: [1_000_000], now: fakeNow },
-      upload:   { budgetMs: 30, parallelism: 1, chunkBytesPlan: [100_000],   now: fakeNow },
-      onProgress: (p) => { phases.push(p.phase); },
+      upload: { budgetMs: 30, parallelism: 1, chunkBytesPlan: [100_000], now: fakeNow },
+      onProgress: (p) => {
+        phases.push(p.phase);
+      },
     });
 
     // Phases should be emitted in this order (multiple emissions per phase OK)
@@ -211,7 +231,7 @@ describe('runTest orchestration', () => {
       runTest(net, {
         latency: { probes: 1 },
         download: { budgetMs: 10, parallelism: 1, chunkBytesPlan: [10] },
-        upload:   { budgetMs: 10, parallelism: 1, chunkBytesPlan: [10] },
+        upload: { budgetMs: 10, parallelism: 1, chunkBytesPlan: [10] },
         onProgress: (p) => phases.push(p.phase),
       }),
     ).rejects.toBeInstanceOf(SpeedTestError);

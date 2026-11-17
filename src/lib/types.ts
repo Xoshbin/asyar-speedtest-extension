@@ -1,10 +1,4 @@
-export type Phase =
-  | 'idle'
-  | 'latency'
-  | 'download'
-  | 'upload'
-  | 'done'
-  | 'error';
+export type Phase = 'idle' | 'latency' | 'download' | 'upload' | 'done' | 'error';
 
 export type Verdict = 'excellent' | 'good' | 'fair' | 'poor';
 
@@ -16,8 +10,8 @@ export interface Meta {
 }
 
 export interface TestResult {
-  id: string;             // ulid-like, monotonic, set when committing to history
-  timestamp: number;      // ms since epoch
+  id: string; // ulid-like, monotonic, set when committing to history
+  timestamp: number; // ms since epoch
   downloadMbps: number;
   uploadMbps: number;
   pingMs: number;

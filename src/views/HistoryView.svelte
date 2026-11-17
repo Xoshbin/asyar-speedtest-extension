@@ -6,6 +6,7 @@
     type IActionService,
     type IClipboardHistoryService,
     type IInteropService,
+    type IFeedbackService,
   } from 'asyar-sdk/contracts';
   import type { HistoryEntry, TestResult } from '../lib/types';
   import { formatMbps, formatMs, formatRelativeTime } from '../lib/format';
@@ -22,13 +23,15 @@
     actions: IActionService;
     clipboard: IClipboardHistoryService;
     interop: IInteropService;
+    feedback?: IFeedbackService;
     extensionId: string;
   }
-  let { context, actions, clipboard, interop, extensionId }: Props = $props();
+  let { context, actions, clipboard, interop, feedback, extensionId }: Props = $props();
 
   let entries = $state<HistoryEntry[]>([]);
   let focusedId = $state<string | null>(null);
   let metric = $state<'download' | 'upload' | 'ping'>('download');
+  let listEl = $state<HTMLElement | undefined>(undefined);
 
   let focused = $derived(entries.find((e) => e.id === focusedId) ?? null);
   let focusedVerdict = $derived(focused ? scoreQuality(focused) : null);
@@ -50,15 +53,10 @@
     return true;
   }
 
-  // The visible list shows newest first; this derived view is the single
-  // source of truth for keyboard navigation order, so ArrowUp/ArrowDown
-  // walk it directly instead of `entries`.
+  // Visible list shows newest first; single source of truth for keyboard navigation.
   let visibleEntries = $derived(entries.slice().reverse());
 
   async function reload() {
-    // Always pass `{}` — Tauri's `state_rpc_request` command requires the
-    // `payload` key to be present, and the SDK strips `undefined` during JSON
-    // serialisation if omitted.
     const raw = await context.request<unknown>('getHistory', {});
     entries = Array.isArray(raw) ? raw.filter(isValidEntry) : [];
     if (entries.length > 0 && !entries.find((e) => e.id === focusedId)) {
@@ -67,8 +65,6 @@
       focusedId = null;
     }
   }
-
-  let listEl: HTMLElement | undefined;
 
   function ensureSelectedVisible(): void {
     requestAnimationFrame(() => {
@@ -101,14 +97,27 @@
     const key = (data.payload as { key?: string } | undefined)?.key;
     if (key === 'ArrowDown') moveSelection(1);
     else if (key === 'ArrowUp') moveSelection(-1);
+    else if (key === 'Enter') void interop.launchCommand(extensionId, 'test');
+  }
+
+  function handleWindowKeydown(event: KeyboardEvent): void {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveSelection(1);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveSelection(-1);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      void interop.launchCommand(extensionId, 'test');
+    }
   }
 
   function dotColor(v: TestResult['verdict']): string {
     switch (v) {
       case 'excellent':
-        return 'var(--accent-success)';
       case 'good':
-        return 'var(--accent-primary)';
+        return 'var(--accent-success)';
       case 'fair':
         return 'var(--accent-warning)';
       default:
@@ -128,14 +137,15 @@
 
   onMount(async () => {
     window.addEventListener('message', handleHostMessage);
+    window.addEventListener('keydown', handleWindowKeydown);
     await reload();
 
     // View-context actions for the ⌘K drawer while HistoryView is mounted.
     actions.registerAction({
       id: `${extensionId}.view.retest`,
-      title: 'Run a test',
+      title: 'Retest',
       shortcut: '⌘R',
-      category: 'Entry',
+      category: 'Test',
       extensionId,
       context: ActionContext.EXTENSION_VIEW,
       execute: () => {
@@ -144,7 +154,7 @@
     });
     actions.registerAction({
       id: `${extensionId}.view.copy-entry`,
-      title: 'Copy entry',
+      title: 'Copy summary',
       shortcut: '⌘C',
       category: 'Entry',
       extensionId,
@@ -152,7 +162,14 @@
       execute: async () => {
         if (!focusedId) return;
         const r = await context.request<{ summary: string } | null>('copyEntry', { id: focusedId });
-        if (r) await clipboard.writeToClipboard(clipboardTextItem(r.summary));
+        if (r) {
+          await clipboard.writeToClipboard(clipboardTextItem(r.summary));
+          try {
+            await feedback?.showHUD('Copied summary');
+          } catch {
+            /* ignore */
+          }
+        }
       },
     });
     actions.registerAction({
@@ -187,20 +204,32 @@
 
   onDestroy(() => {
     window.removeEventListener('message', handleHostMessage);
+    window.removeEventListener('keydown', handleWindowKeydown);
+    actions.unregisterAction(`${extensionId}.view.retest`);
+    actions.unregisterAction(`${extensionId}.view.copy-entry`);
+    actions.unregisterAction(`${extensionId}.view.delete-entry`);
+    actions.unregisterAction(`${extensionId}.view.clear-all`);
   });
 </script>
 
-<div class="history">
+<div class="history-view">
   {#if entries.length === 0}
-    <div class="empty">
-      <p>No tests yet.</p>
+    <div class="empty-state">
+      <div class="empty-icon">📊</div>
+      <p class="empty-title">No speed tests recorded yet</p>
+      <p class="empty-subtitle">Run a test to start tracking connection telemetry trends.</p>
+      <button class="run-btn" onclick={() => interop.launchCommand(extensionId, 'test')}>
+        <kbd>⏎</kbd> Run speed test
+      </button>
     </div>
   {:else}
-    <div class="split">
-      <aside class="list custom-scrollbar" bind:this={listEl}>
+    <div class="split-layout">
+      <!-- Left History List (38px row rhythm) -->
+      <aside class="history-list custom-scrollbar" bind:this={listEl}>
+        <div class="list-header">Past tests ({visibleEntries.length})</div>
         {#each visibleEntries as e (e.id)}
           <button
-            class="entry"
+            class="entry-row"
             class:selected={e.id === focusedId}
             data-entry-id={e.id}
             onclick={() => {
@@ -208,31 +237,65 @@
               ensureSelectedVisible();
             }}
           >
-            <span class="dot" style="background-color: {dotColor(e.verdict)}"></span>
-            <span class="title">{formatMbps(e.downloadMbps)} ↓ / {formatMbps(e.uploadMbps)} ↑</span>
-            <span class="sub">
-              {formatRelativeTime(e.timestamp)} · {e.server.colo} · {formatMs(e.pingMs)} ms
-            </span>
+            <span class="status-pip" style="background-color: {dotColor(e.verdict)}"></span>
+            <div class="row-content">
+              <div class="row-primary">
+                <span class="throughput-summary">
+                  <span class="dl-stat">↓ {formatMbps(e.downloadMbps)}</span>
+                  <span class="stat-sep">•</span>
+                  <span class="ul-stat">↑ {formatMbps(e.uploadMbps)}</span>
+                </span>
+                <span class="timestamp">{formatRelativeTime(e.timestamp)}</span>
+              </div>
+              <div class="row-secondary">
+                <span class="server-node">{e.server.colo} ({e.server.isp})</span>
+                <span class="ping-stat">{formatMs(e.pingMs)} ms</span>
+              </div>
+            </div>
           </button>
         {/each}
       </aside>
-      <section class="detail custom-scrollbar">
-        <div class="chart-row">
-          <div class="tabs">
-            <button class:active={metric === 'download'} onclick={() => (metric = 'download')}
-              >Download</button
-            >
-            <button class:active={metric === 'upload'} onclick={() => (metric = 'upload')}
-              >Upload</button
-            >
-            <button class:active={metric === 'ping'} onclick={() => (metric = 'ping')}>Ping</button>
+
+      <!-- Right Detail Pane: Trend Chart & Result Dashboard -->
+      <section class="detail-pane custom-scrollbar">
+        <!-- Trend Chart Section -->
+        <div class="chart-panel">
+          <div class="chart-header">
+            <span class="panel-title">Telemetry trend</span>
+            <div class="metric-tabs">
+              <button
+                class="tab-btn"
+                class:active={metric === 'download'}
+                onclick={() => (metric = 'download')}
+              >
+                Download
+              </button>
+              <button
+                class="tab-btn"
+                class:active={metric === 'upload'}
+                onclick={() => (metric = 'upload')}
+              >
+                Upload
+              </button>
+              <button
+                class="tab-btn"
+                class:active={metric === 'ping'}
+                onclick={() => (metric = 'ping')}
+              >
+                Ping
+              </button>
+            </div>
           </div>
           <TrendChart series={entries} selectedId={focusedId} {metric} />
         </div>
+
+        <!-- Selected Result Card -->
         {#if focused && focusedVerdict}
           <ResultCard result={focused} verdict={focusedVerdict} />
         {:else}
-          <p class="hint">Select a test on the left.</p>
+          <div class="no-selection">
+            <p>Select a past test from the list.</p>
+          </div>
         {/if}
       </section>
     </div>
@@ -240,37 +303,95 @@
 </div>
 
 <style>
-  .history {
+  .history-view {
     height: 100%;
-  }
-  .empty {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    overflow: hidden;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
     align-items: center;
-    padding: var(--space-7);
-    color: var(--text-secondary);
-  }
-  .split {
-    display: grid;
-    grid-template-columns: 280px 1fr;
-    gap: var(--space-3);
+    justify-content: center;
     height: 100%;
-    padding: var(--space-3);
+    padding: var(--space-7);
+    text-align: center;
   }
-  .list {
+
+  .empty-icon {
+    font-size: 2.5rem;
+    margin-bottom: var(--space-2);
+  }
+
+  .empty-title {
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .empty-subtitle {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-sm);
+    margin: 0 0 var(--space-4) 0;
+  }
+
+  .run-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--dur-instant) var(--ease-travel);
+  }
+
+  .run-btn:hover {
+    background: var(--bg-hover);
+  }
+
+  .split-layout {
+    display: grid;
+    grid-template-columns: 290px 1fr;
+    gap: var(--space-3);
+    flex: 1;
+    min-height: 0;
+    padding: var(--space-3);
+    overflow: hidden;
+  }
+
+  .history-list {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    gap: 0;
     overflow-y: auto;
-    padding-right: var(--space-2);
+    padding-right: var(--space-1);
+    border-right: 1px solid var(--separator);
   }
-  .entry {
-    display: grid;
-    grid-template-columns: 10px 1fr;
-    grid-template-rows: auto auto;
-    gap: var(--space-1) var(--space-2);
-    padding: var(--space-2) var(--space-3);
+
+  .list-header {
+    padding: var(--space-1) var(--space-2) var(--space-2);
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    letter-spacing: var(--tracking-normal);
+  }
+
+  .entry-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: var(--shell-row-h);
+    min-height: var(--shell-row-h);
+    padding: 0 var(--space-2);
     border: 0;
     border-radius: var(--radius-sm);
     background: transparent;
@@ -278,58 +399,174 @@
     cursor: pointer;
     text-align: left;
     font: inherit;
+    transition: background-color var(--dur-instant) var(--ease-travel);
+    user-select: none;
+    width: 100%;
+    box-sizing: border-box;
   }
-  .entry:hover {
+
+  .entry-row:hover {
     background-color: var(--bg-hover);
   }
-  .entry.selected {
+
+  .entry-row.selected {
     background-color: var(--bg-selected);
   }
-  .dot {
-    grid-row: 1 / span 2;
-    align-self: center;
-    width: 8px;
-    height: 8px;
+
+  .status-pip {
+    width: 6px;
+    height: 6px;
     border-radius: var(--radius-full);
+    flex-shrink: 0;
   }
-  .title {
-    font-size: var(--font-size-sm);
-    font-variant-numeric: tabular-nums;
-  }
-  .sub {
-    color: var(--text-tertiary);
-    font-size: var(--font-size-xs);
-  }
-  .detail {
+
+  .row-content {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
-    overflow-y: auto;
+    justify-content: center;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
   }
-  .chart-row {
+
+  .row-primary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .throughput-summary {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dl-stat {
+    color: var(--text-primary);
+  }
+
+  .ul-stat {
+    color: var(--text-secondary);
+  }
+
+  .stat-sep {
+    color: var(--separator);
+    font-size: var(--font-size-2xs);
+  }
+
+  .timestamp {
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-2xs);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .row-secondary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .server-node {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-2xs);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ping-stat {
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-2xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .detail-pane {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    overflow-y: auto;
+    padding-right: var(--space-1);
+  }
+
+  .chart-panel {
     background-color: var(--bg-secondary);
+    border: 1px solid var(--separator);
     border-radius: var(--radius-lg);
     padding: var(--space-3);
-  }
-  .tabs {
     display: flex;
-    gap: var(--space-1);
-    margin-bottom: var(--space-2);
+    flex-direction: column;
+    gap: var(--space-2);
   }
-  .tabs button {
+
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .panel-title {
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+  }
+
+  .metric-tabs {
+    display: flex;
+    gap: 4px;
+    background-color: var(--bg-tertiary);
+    padding: 2px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--separator);
+  }
+
+  .tab-btn {
     background: transparent;
     border: 0;
     color: var(--text-secondary);
     font-size: var(--font-size-xs);
-    padding: var(--space-1) var(--space-2);
+    font-weight: 500;
+    padding: 2px var(--space-2);
     border-radius: var(--radius-xs);
     cursor: pointer;
+    transition: all var(--dur-instant) var(--ease-travel);
   }
-  .tabs button.active {
-    background-color: var(--bg-hover);
+
+  .tab-btn:hover {
     color: var(--text-primary);
   }
-  .hint {
+
+  .tab-btn.active {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-weight: 600;
+    box-shadow: var(--shadow-xs);
+  }
+
+  .no-selection {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6);
     color: var(--text-tertiary);
+    font-size: var(--font-size-sm);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-full);
   }
 </style>

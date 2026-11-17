@@ -48,9 +48,9 @@ const FULL_OPTS: RunTestOpts = {
   download: {
     budgetMs: 12_000,
     parallelism: 4,
-    chunkBytesPlan: [100_000, 1_000_000, 10_000_000, 25_000_000],
+    chunkBytesPlan: [100_000, 1_000_000, 5_000_000, 8_000_000],
   },
-  upload: { budgetMs: 8_000, parallelism: 2, chunkBytesPlan: [100_000, 1_000_000, 10_000_000] },
+  upload: { budgetMs: 8_000, parallelism: 2, chunkBytesPlan: [100_000, 1_000_000, 5_000_000] },
 };
 const QUICK_OPTS: RunTestOpts = {
   latency: { probes: 5 },
