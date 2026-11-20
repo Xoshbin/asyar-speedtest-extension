@@ -63,5 +63,11 @@
         }
       }
     }
+  ],
+  "category": "utilities",
+  "platforms": [
+    "macos",
+    "windows",
+    "linux"
   ]
 }
